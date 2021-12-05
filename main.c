@@ -109,7 +109,7 @@ t_cmd *parse_args(int ac, char **av)
 	{
 		int idx_end = get_last_args_idx(i + 1, ac, av);
 
-		t_cmd *tmp = malloc_cmd(avdup(av, i, idx_end));
+		t_cmd *tmp = malloc_cmd(avdup(av, i + 1, idx_end));
 		if (tmp == NULL)
 			exit_fatal_error();
 		else if (result == NULL)
@@ -138,9 +138,10 @@ t_cmd *parse_args(int ac, char **av)
 void print_array(char **arr)
 {
 	int i = 0;
+	printf("-------\n");
 	while (arr[i])
 	{
-		printf("  %s\n", arr[i]);
+		printf("    %s\n", arr[i]);
 		i++;
 	}
 }
@@ -151,7 +152,8 @@ void print_cmd(t_cmd *cmd)
 
 	while (iterator)
 	{
-		print_array(cmd->args);
+		print_array(iterator->args);
+
 		if (iterator->next != NULL)
 			iterator = iterator->next;
 		else
