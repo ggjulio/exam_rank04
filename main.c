@@ -161,6 +161,27 @@ void print_cmd(t_cmd *cmd)
 	}
 }
 
+t_cmd* exec_pipeline(t_cmd *it)
+{
+	while ()
+
+	return it;
+}
+
+void exec_cmds(t_cmd *cmds)
+{
+	t_cmd * it = cmd;
+
+	while (it)
+	{
+		if (!strcmp(it->args[0], "cd")
+			builtin_cd(it);
+		else
+			it = exec_pipeline(it);
+		it = it->next;
+	}
+}
+
 int main(int ac, char **av, char **env)
 {
 	(void)ac;
