@@ -31,4 +31,5 @@ Conseils:
 Ne fuitez pas de file descriptor!
 
 
-lldb : settings set -- target.run-args  "/bin/ls" '\|' "/usr/bin/grep" "microshell" "\;" "/bin/echo" "i" "love" "my" "microshell"
+lldb : 
+settings set -- target.run-args  "/bin/ls" '\|' "/usr/bin/grep" "microshell" "\;" "/bin/echo" "i" "love" "my" "microshell"

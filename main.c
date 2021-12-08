@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 
+char * const* g_env = NULL;
 
 typedef struct s_cmd{
 	char			**args;
@@ -135,6 +136,75 @@ t_cmd *parse_args(int ac, char **av)
 	return result;
 }
 
+
+
+pid_t spawn(int in, int out, t_cmd *it)
+{
+	pid_t	pid;
+
+	if ((pid = fork()) == 0)
+	{
+		if (in != 0)
+		{
+			dup2(in, 0);
+			close(in);
+		}
+		if (out != 1)
+		{
+			dup2(out, 1);
+			close(out);
+		}
+		return execve(it->args[0], it->args, g_env);
+	}
+	return pid;
+}
+
+int fork_pipes(t_cmd * it)
+{
+	// pid_t	pid;
+	int		in, fds[2];
+
+	in = 0;
+	while (it->pipe)
+	{
+		pipe(fds);
+		spawn(in, fds[1], it);
+		close(fds[1]);
+		in = fds[0];
+		it = it->pipe;
+	}
+	if (in != 0)
+		dup2(in, 0);
+	return execve(it->args[0], it->args, g_env);
+}
+
+void exec_cmds(t_cmd *cmds)
+{
+	int status;
+	t_cmd * it = cmds;
+
+	while (it)
+	{
+		if (!strcmp(it->args[0], "cd"))
+		{
+			builtin_cd(it);
+			it = it->next;
+		}
+		else
+		{
+			fork_pipes(it);
+			wait(&status);
+			if (it->next)
+				it = it->next;
+			else
+			{
+				while (it->pipe)
+					it = it->pipe;
+			}
+		}
+	}
+}
+
 void print_array(char **arr)
 {
 	int i = 0;
@@ -159,35 +229,16 @@ void print_cmd(t_cmd *cmd)
 		else
 			iterator = iterator->pipe;
 	}
-}
-
-t_cmd* exec_pipeline(t_cmd *it)
-{
-	while ()
-
-	return it;
-}
-
-void exec_cmds(t_cmd *cmds)
-{
-	t_cmd * it = cmd;
-
-	while (it)
-	{
-		if (!strcmp(it->args[0], "cd")
-			builtin_cd(it);
-		else
-			it = exec_pipeline(it);
-		it = it->next;
-	}
+	printf("-------\n");
+	printf("-------\n");
 }
 
 int main(int ac, char **av, char **env)
 {
-	(void)ac;
-	(void)av;
-	(void)env;
+	g_env = env;
     t_cmd* res = parse_args(ac, av);
+    print_cmd(res);
+	exec_cmds(res);
     print_cmd(res);
 	return 0;
 }
