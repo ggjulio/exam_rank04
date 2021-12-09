@@ -3,6 +3,9 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <sys/types.h>
+#include <sys/wait.h>
+
 char * const* g_env = NULL;
 
 typedef struct s_cmd{
@@ -136,8 +139,6 @@ t_cmd *parse_args(int ac, char **av)
 	return result;
 }
 
-
-
 pid_t spawn(int in, int out, t_cmd *it)
 {
 	pid_t	pid;
@@ -154,12 +155,12 @@ pid_t spawn(int in, int out, t_cmd *it)
 			dup2(out, 1);
 			close(out);
 		}
-		return execve(it->args[0], it->args, g_env);
+		execve(it->args[0], it->args, g_env);
 	}
 	return pid;
 }
 
-int fork_pipes(t_cmd * it)
+void fork_pipes(t_cmd * it)
 {
 	// pid_t	pid;
 	int		in, fds[2];
@@ -167,7 +168,8 @@ int fork_pipes(t_cmd * it)
 	in = 0;
 	while (it->pipe)
 	{
-		pipe(fds);
+		if (pipe(fds) == -1)
+			exit_fatal_error();
 		spawn(in, fds[1], it);
 		close(fds[1]);
 		in = fds[0];
@@ -175,7 +177,18 @@ int fork_pipes(t_cmd * it)
 	}
 	if (in != 0)
 		dup2(in, 0);
-	return execve(it->args[0], it->args, g_env);
+	spawn(0, 1, it);
+	
+	// if ((pid = fork()) == 0)
+	// {
+	// 	close(fds[1]);
+	// 	execve(it->args[0], it->args, g_env);
+	// }
+	// else
+	// {
+	// 	close(fds[1]);
+	// 	// close();
+	// }
 }
 
 void exec_cmds(t_cmd *cmds)
@@ -200,6 +213,7 @@ void exec_cmds(t_cmd *cmds)
 			{
 				while (it->pipe)
 					it = it->pipe;
+				it = it->next;
 			}
 		}
 	}
@@ -236,9 +250,8 @@ void print_cmd(t_cmd *cmd)
 int main(int ac, char **av, char **env)
 {
 	g_env = env;
-    t_cmd* res = parse_args(ac, av);
-    print_cmd(res);
+	t_cmd* res = parse_args(ac, av);
+	print_cmd(res);
 	exec_cmds(res);
-    print_cmd(res);
 	return 0;
 }
