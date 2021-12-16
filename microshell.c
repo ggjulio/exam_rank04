@@ -49,6 +49,15 @@ void exit_fatal_error()
 	exit(1);
 }
 
+void error_exec(char *exec)
+{
+	const char *err = "error: cannot execute ";
+
+	write(STDERR_FILENO, err, ft_strlen(err));
+	write(STDERR_FILENO, exec, ft_strlen(exec));
+	write(STDERR_FILENO, "\n", 1);
+}
+
 t_cmd *malloc_cmd(char **args)
 {
 	t_cmd *result;
@@ -148,7 +157,8 @@ pid_t spawn(int in, int out, t_cmd *it)
 			dup2(out, 1);
 			close(out);
 		}
-		execve(it->args[0], it->args, g_env);
+		if (execve(it->args[0], it->args, g_env) == -1)
+			error_exec(it->args[0]);
 	}
 	return pid;
 }

@@ -35,7 +35,7 @@ void builtin_cd(t_cmd *cmd)
 		write(STDERR_FILENO, err_bad_args, ft_strlen(err_bad_args));
 	if (chdir(cmd->args[1]))
 	{
-		write(STDERR_FILENO, err_cant_cd, ft_strlen(err_cant_cd));		
+		write(STDERR_FILENO, err_cant_cd, ft_strlen(err_cant_cd));
 		write(STDERR_FILENO, cmd->args[1], ft_strlen(cmd->args[1]));
 		write(STDERR_FILENO, "\n", 1);
 	}
@@ -49,12 +49,13 @@ void exit_fatal_error()
 	exit(1);
 }
 
-void exit_fatal_error(char *exec)
+void error_exec(char *exec)
 {
-	const char *err = "error: fatal\n";
+	const char *err = "error: cannot execute ";
 
 	write(STDERR_FILENO, err, ft_strlen(err));
-	exit(1);
+	write(STDERR_FILENO, exec, ft_strlen(exec));
+	write(STDERR_FILENO, "\n", 1);
 }
 
 t_cmd *malloc_cmd(char **args)
@@ -157,7 +158,7 @@ pid_t spawn(int in, int out, t_cmd *it)
 			close(out);
 		}
 		if (execve(it->args[0], it->args, g_env) == -1)
-			exit_fatal_error;
+			error_exec(it->args[0]);
 	}
 	return pid;
 }
