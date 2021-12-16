@@ -64,7 +64,7 @@ t_cmd *malloc_cmd(char **args)
 
 	result = malloc(sizeof(t_cmd));
 	if (result == NULL)
-		return (NULL);
+		exit_fatal_error();
 	result->args = args;
 	result->pipe = NULL;
 	result->next = NULL;
@@ -77,7 +77,7 @@ char *ft_strdup(char *str)
 
 	res = malloc(ft_strlen(str) + 1);
 	if (res == NULL)
-		return NULL;
+		exit_fatal_error();
 	int i = -1;
 	while (str[++i])
 		res[i] = str[i];
@@ -91,7 +91,7 @@ char **avdup(char **av, int idx_start, int idx_end)
 
 	res = malloc(sizeof(char *) * (1 + idx_end - idx_start));
 	if (res == NULL)
-		return NULL;
+		exit_fatal_error();
 	int i = 0;
 	while (idx_start < idx_end)
 	{
