@@ -201,55 +201,6 @@ int main(int ac, char **av, char **env)
 {
 	g_env = env;
 	t_cmd* res = parse_args(ac, av);
-	// print_cmd(res);
 	exec_cmds(res);
-	// free_shit(res);
-	exit(0); // exit to avoid valgrind reported leak on res...
+	exit(0);
 }
-
-// void	free_cmd(t_cmd *to_free)
-// {
-// 	size_t i = 0;
-
-// 	while(to_free->args[i])
-// 		free(to_free->args[i++]);
-// 	free(to_free->args);
-// 	free(to_free);
-// }
-
-// void free_shit(t_cmd *to_free)
-// {
-// 	t_cmd *tmp = to_free->next ? to_free->next: to_free->pipe;
-// 	free_cmd(to_free);
-// 	if (tmp ==NULL)
-// 		return;
-// 	free_shit(tmp);
-// }
-
-// void print_array(char **arr)
-// {
-// 	int i = 0;
-// 	printf("-------\n");
-// 	while (arr[i])
-// 	{
-// 		printf("    %s\n", arr[i]);
-// 		i++;
-// 	}
-// }
-
-// void print_cmd(t_cmd *cmd)
-// {
-// 	t_cmd *iterator = cmd;
-
-// 	while (iterator)
-// 	{
-// 		print_array(iterator->args);
-
-// 		if (iterator->next != NULL)
-// 			iterator = iterator->next;
-// 		else
-// 			iterator = iterator->pipe;
-// 	}
-// 	printf("-------\n");
-// 	printf("-------\n");
-// }
