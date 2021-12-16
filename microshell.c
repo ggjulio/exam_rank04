@@ -184,7 +184,7 @@ t_cmd *parse_args(int ac, char **av)
 				iterator = iterator->next;
 			}
 		}
-		i = idx_end;
+		i = idx_end + 1;
 	}
 	return result;
 }
