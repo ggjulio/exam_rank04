@@ -14,6 +14,8 @@ typedef struct s_cmd{
 	struct s_cmd	*next;
 } t_cmd;
 
+t_cmd *g_no_leak = NULL;
+
 int ft_strlen(char const *str)
 {
 	int i = 0;
@@ -228,6 +230,7 @@ void fork_pipes(t_cmd * it)
 	if (in != 0)
 		dup2(in, 0);
 	spawn(0, 1, it);
+	close(fds[0]);
 	
 	// if ((pid = fork()) == 0)
 	// {
@@ -301,6 +304,7 @@ int main(int ac, char **av, char **env)
 {
 	g_env = env;
 	t_cmd* res = parse_args(ac, av);
+	g_no_leak = res;
 	print_cmd(res);
 	exec_cmds(res);
 	return 0;
