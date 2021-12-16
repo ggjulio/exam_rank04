@@ -33,7 +33,7 @@ void builtin_cd(t_cmd *cmd)
 		nb_args++;
 	if (nb_args != 2)
 		write(STDERR_FILENO, err_bad_args, ft_strlen(err_bad_args));
-	if (chdir(cmd->args[1]))
+	else if (chdir(cmd->args[1]))
 	{
 		write(STDERR_FILENO, err_cant_cd, ft_strlen(err_cant_cd));
 		write(STDERR_FILENO, cmd->args[1], ft_strlen(cmd->args[1]));
