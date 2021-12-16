@@ -2,3 +2,6 @@
 microshell.
 microshell.dSYM/
 microshell
+
+leaks.res
+out.res

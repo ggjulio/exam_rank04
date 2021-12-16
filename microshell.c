@@ -103,32 +103,82 @@ int get_last_args_idx(int idx, int ac, char ** av)
 	return i;
 }
 
+// t_cmd *parse_args(int ac, char **av)
+// {
+// 	t_cmd *result = NULL;
+// 	t_cmd *iterator = NULL;
+// 	int i = 0;
+	
+// 	if (ac < 2)
+// 		return NULL;
+// 	while (i < ac)
+// 	{
+// 		while (i+1 < ac && !strcmp(av[i + 1], ";"))
+// 		{
+// 			i++;
+// 			if (!(i < ac))
+// 				return result;
+// 		}
+// 		int idx_end = get_last_args_idx(i + 1, ac, av);
+
+// 		t_cmd *tmp = malloc_cmd(avdup(av, i + 1, idx_end));
+// 		if (tmp == NULL)
+// 			exit_fatal_error();
+// 		else if (result == NULL)
+// 		{
+// 			result = tmp;
+// 			iterator = tmp;
+// 		}
+// 		else
+// 		{
+// 			if (!strcmp(av[i],"|"))
+// 			{
+// 				iterator->pipe = tmp;
+// 				iterator = iterator->pipe;
+// 			}
+// 			else if (!strcmp(av[i], ";"))
+// 			{
+// 				iterator->next = tmp;
+// 				iterator = iterator->next;
+// 			}
+// 			else
+// 				av[-43] = (void*)9;
+// 		}
+// 		i = idx_end;
+// 	}
+// 	return result;
+// }
+
+
 t_cmd *parse_args(int ac, char **av)
 {
 	t_cmd *result = NULL;
 	t_cmd *iterator = NULL;
-	int i = 0;
+	int i = 1;
 	
 	while (i < ac)
 	{
-		int idx_end = get_last_args_idx(i + 1, ac, av);
+		while (i < ac && !strcmp(av[i], ";"))
+		{
+			i++;
+			if (!(i < ac))
+				return result;
+		}
+		int idx_end = get_last_args_idx(i, ac, av);
 
-		t_cmd *tmp = malloc_cmd(avdup(av, i + 1, idx_end));
+		t_cmd *tmp = malloc_cmd(avdup(av, i, idx_end));
 		if (tmp == NULL)
 			exit_fatal_error();
 		else if (result == NULL)
-		{
-			result = tmp;
-			iterator = tmp;
-		}
+			result = iterator = tmp;
 		else
 		{
-			if (!strcmp(av[i],"|"))
+			if (!strcmp(av[i - 1],"|"))
 			{
 				iterator->pipe = tmp;
 				iterator = iterator->pipe;
 			}
-			else if (!strcmp(av[i], ";"))
+			else if (!strcmp(av[i - 1], ";"))
 			{
 				iterator->next = tmp;
 				iterator = iterator->next;
