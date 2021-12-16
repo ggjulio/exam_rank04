@@ -120,7 +120,7 @@ t_cmd *parse_args(int ac, char **av)
 	
 	while (i < ac)
 	{
-		while (i < ac && !strcmp(av[i], ";"))
+		while (!strcmp(av[i], ";"))
 			if (!(++i < ac))
 				return result;
 		int idx_end = get_last_args_idx(i, ac, av);
