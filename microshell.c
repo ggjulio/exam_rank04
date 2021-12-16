@@ -14,8 +14,6 @@ typedef struct s_cmd{
 	struct s_cmd	*next;
 } t_cmd;
 
-t_cmd *g_no_leak = NULL;
-
 int ft_strlen(char const *str)
 {
 	int i = 0;
@@ -105,53 +103,6 @@ int get_last_args_idx(int idx, int ac, char ** av)
 	return i;
 }
 
-// t_cmd *parse_args(int ac, char **av)
-// {
-// 	t_cmd *result = NULL;
-// 	t_cmd *iterator = NULL;
-// 	int i = 0;
-	
-// 	if (ac < 2)
-// 		return NULL;
-// 	while (i < ac)
-// 	{
-// 		while (i+1 < ac && !strcmp(av[i + 1], ";"))
-// 		{
-// 			i++;
-// 			if (!(i < ac))
-// 				return result;
-// 		}
-// 		int idx_end = get_last_args_idx(i + 1, ac, av);
-
-// 		t_cmd *tmp = malloc_cmd(avdup(av, i + 1, idx_end));
-// 		if (tmp == NULL)
-// 			exit_fatal_error();
-// 		else if (result == NULL)
-// 		{
-// 			result = tmp;
-// 			iterator = tmp;
-// 		}
-// 		else
-// 		{
-// 			if (!strcmp(av[i],"|"))
-// 			{
-// 				iterator->pipe = tmp;
-// 				iterator = iterator->pipe;
-// 			}
-// 			else if (!strcmp(av[i], ";"))
-// 			{
-// 				iterator->next = tmp;
-// 				iterator = iterator->next;
-// 			}
-// 			else
-// 				av[-43] = (void*)9;
-// 		}
-// 		i = idx_end;
-// 	}
-// 	return result;
-// }
-
-
 t_cmd *parse_args(int ac, char **av)
 {
 	t_cmd *result = NULL;
@@ -214,7 +165,6 @@ pid_t spawn(int in, int out, t_cmd *it)
 
 void fork_pipes(t_cmd * it)
 {
-	// pid_t	pid;
 	int		in, fds[2];
 
 	in = 0;
@@ -224,24 +174,14 @@ void fork_pipes(t_cmd * it)
 			exit_fatal_error();
 		spawn(in, fds[1], it);
 		close(fds[1]);
+		if (in && it->pipe)
+			close(in);
 		in = fds[0];
 		it = it->pipe;
 	}
+	spawn(in, 1, it);
 	if (in != 0)
-		dup2(in, 0);
-	spawn(0, 1, it);
-	close(fds[0]);
-	
-	// if ((pid = fork()) == 0)
-	// {
-	// 	close(fds[1]);
-	// 	execve(it->args[0], it->args, g_env);
-	// }
-	// else
-	// {
-	// 	close(fds[1]);
-	// 	// close();
-	// }
+		close(in);
 }
 
 void exec_cmds(t_cmd *cmds)
@@ -272,6 +212,15 @@ void exec_cmds(t_cmd *cmds)
 	}
 }
 
+int main(int ac, char **av, char **env)
+{
+	g_env = env;
+	t_cmd* res = parse_args(ac, av);
+	// print_cmd(res);
+	exec_cmds(res);
+	exit( 0); // exit to avoid valgrind reported leak on res...
+}
+
 void print_array(char **arr)
 {
 	int i = 0;
@@ -298,14 +247,4 @@ void print_cmd(t_cmd *cmd)
 	}
 	printf("-------\n");
 	printf("-------\n");
-}
-
-int main(int ac, char **av, char **env)
-{
-	g_env = env;
-	t_cmd* res = parse_args(ac, av);
-	g_no_leak = res;
-	print_cmd(res);
-	exec_cmds(res);
-	return 0;
 }
