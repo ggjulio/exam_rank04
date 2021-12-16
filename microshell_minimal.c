@@ -49,6 +49,14 @@ void exit_fatal_error()
 	exit(1);
 }
 
+void exit_fatal_error(char *exec)
+{
+	const char *err = "error: fatal\n";
+
+	write(STDERR_FILENO, err, ft_strlen(err));
+	exit(1);
+}
+
 t_cmd *malloc_cmd(char **args)
 {
 	t_cmd *result;
@@ -112,18 +120,15 @@ t_cmd *parse_args(int ac, char **av)
 	while (i < ac)
 	{
 		while (i < ac && !strcmp(av[i], ";"))
-		{
-			i++;
-			if (!(i < ac))
+			if (!(++i < ac))
 				return result;
-		}
 		int idx_end = get_last_args_idx(i, ac, av);
 
 		t_cmd *tmp = malloc_cmd(avdup(av, i, idx_end));
 		if (tmp == NULL)
 			exit_fatal_error();
-		else if (result == NULL)
-			result = iterator = tmp;
+		if (result == NULL)
+			iterator = result = tmp;
 		else if (!strcmp(av[i - 1],"|"))
 			iterator = iterator->pipe = tmp;
 		else if (!strcmp(av[i - 1], ";"))
@@ -151,7 +156,8 @@ pid_t spawn(int in, int out, t_cmd *it)
 			dup2(out, 1);
 			close(out);
 		}
-		execve(it->args[0], it->args, g_env);
+		if (execve(it->args[0], it->args, g_env) == -1)
+			exit_fatal_error;
 	}
 	return pid;
 }

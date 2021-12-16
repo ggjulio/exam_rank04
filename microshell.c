@@ -112,18 +112,15 @@ t_cmd *parse_args(int ac, char **av)
 	while (i < ac)
 	{
 		while (i < ac && !strcmp(av[i], ";"))
-		{
-			i++;
-			if (!(i < ac))
+			if (!(++i < ac))
 				return result;
-		}
 		int idx_end = get_last_args_idx(i, ac, av);
 
 		t_cmd *tmp = malloc_cmd(avdup(av, i, idx_end));
 		if (tmp == NULL)
 			exit_fatal_error();
-		else if (result == NULL)
-			result = iterator = tmp;
+		if (result == NULL)
+			iterator = result = tmp;
 		else if (!strcmp(av[i - 1],"|"))
 			iterator = iterator->pipe = tmp;
 		else if (!strcmp(av[i - 1], ";"))
