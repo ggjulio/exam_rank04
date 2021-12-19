@@ -208,6 +208,8 @@ int main(int ac, char **av, char **env)
 {
 	g_env = env;
 	t_cmd* res = parse_args(ac, av);
+	res = 0;
 	exec_cmds(res);
-	exit(0);
+	while(1) ;
+	// exit(0);
 }

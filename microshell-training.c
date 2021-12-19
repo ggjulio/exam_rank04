@@ -1,28 +1,18 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   microshell-training.c                              :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: juligonz <juligonz@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2021/12/16 22:11:47 by juligonz          #+#    #+#             */
-/*   Updated: 2021/12/16 23:23:34 by juligonz         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
-#include <unistd.h>
 #include <stdlib.h>
-#include <sys/types.h>
+#include <unistd.h>
 #include <string.h>
+#include <stdio.h>
+
+#include <sys/types.h>
 #include <sys/wait.h>
 
-char *const*g_env = NULL;
+char * const *g_env = NULL;
 
 typedef struct s_cmd
 {
-	char **args;
-	struct s_cmd *next;
-	struct s_cmd *pipe;
+	char			**args;
+	struct s_cmd	*pipe;
+	struct s_cmd	*next;
 } t_cmd;
 
 size_t ft_strlen(char const *str)
@@ -53,31 +43,19 @@ void builtin_cd(t_cmd *cmd)
 
 void exit_fatal_error()
 {
-	const char *err_fatal = "error: fatal\n";
-	write(STDERR_FILENO, err_fatal, ft_strlen(err_fatal));
+	const char *err = "error: fatal\n";
+
+	write(STDERR_FILENO, err, ft_strlen(err));
 	exit(1);
 }
 
 void error_exec(char *exec)
 {
-	const char *err_fatal = "error: cannot execute ";
-	write(STDERR_FILENO, err_fatal, ft_strlen(err_fatal));
+	const char *err = "error: cannot execute ";
+
+	write(STDERR_FILENO, err, ft_strlen(err));
 	write(STDERR_FILENO, exec, ft_strlen(exec));
 	write(STDERR_FILENO, "\n", 1);
-}
-
-char *ft_strdup(char *s)
-{
-	char *res;
-
-	res = malloc(ft_strlen(s));
-	if (res == NULL)
-		exit_fatal_error();
-	size_t i = -1;
-	while(s[++i])
-		res[i] = s[i];
-	res[i] = 0;
-	return res;
 }
 
 t_cmd *malloc_cmd(char **args)
@@ -93,19 +71,30 @@ t_cmd *malloc_cmd(char **args)
 	return result;
 }
 
+char *ft_strdup(char *s)
+{
+	char *res = malloc(ft_strlen(s));
+	if (res == NULL)
+		exit_fatal_error();
+	size_t i = -1;
+	while(s[++i])
+		res[i] = s[i];
+	res[i] = 0;
+	return res;
+}
+
+
 char **avdup(char **av, int idx_start, int idx_end)
 {
-	char **res;
-
-	res = malloc(sizeof(char*) * (1 + idx_end - idx_start));
+	char **res = malloc(sizeof(char*) * (1 + idx_end - idx_start));
 	if (res == NULL)
 		exit_fatal_error();
 	int i = 0;
 	while (idx_start < idx_end)
 	{
 		res[i] = ft_strdup(av[idx_start]);
-		i++;
 		idx_start++;
+		i++;
 	}
 	res[i] = 0;
 	return res;
@@ -129,7 +118,7 @@ t_cmd* parse_args(int ac, char**av)
 	while (i < ac)
 	{
 		while (!strcmp(av[i], ";"))
-			if (!(i < ac))
+			if (!(++i < ac))
 				return result;
 		int idx_end = get_last_arg_idx(i, ac, av);
 
@@ -219,6 +208,7 @@ int main(int ac, char **av, char **env)
 	g_env = env;
 	t_cmd *res = parse_args(ac, av);
 	exec_cmds(res);
+	while(1) ;
 	exit(0);
 }
-// no leaks don't worry :-*
+// no free, no leaks don't worry :-*

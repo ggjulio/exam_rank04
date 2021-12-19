@@ -3,5 +3,8 @@ microshell.
 microshell.dSYM/
 microshell
 
+a.out
+*.dSYM/
+*~
 leaks.res
 out.res

@@ -1,0 +1,686 @@
+/bin/ls$
+microshell$
+microshell-training.c$
+microshell-training2.c$
+microshell.c$
+microshell.dSYM$
+microshell_minimal.c$
+out.res$
+subject.en.txt$
+subject.fr.txt$
+test.sh$
+test2.sh$
+$
+/bin/cat microshell.c$
+#include <stdlib.h>$
+#include <unistd.h>$
+#include <string.h>$
+#include <stdio.h>$
+$
+#include <sys/types.h>$
+#include <sys/wait.h>$
+$
+char * const* g_env = NULL;$
+$
+typedef struct s_cmd{$
+	char			**args;$
+	struct s_cmd	*pipe;$
+	struct s_cmd	*next;$
+} t_cmd;$
+$
+int ft_strlen(char const *str)$
+{$
+	int i = 0;$
+$
+	while(str[i])$
+		i++;$
+	return (i);$
+}$
+$
+void builtin_cd(t_cmd *cmd)$
+{$
+	int nb_args = 0;$
+	const char *err_bad_args = "error: cd: bad arguments\n"; $
+	const char *err_cant_cd = "error: cd: cannot change directory to "; $
+$
+	while (cmd->args[nb_args])$
+		nb_args++;$
+	if (nb_args != 2)$
+		write(STDERR_FILENO, err_bad_args, ft_strlen(err_bad_args));$
+	else if (chdir(cmd->args[1]))$
+	{$
+		write(STDERR_FILENO, err_cant_cd, ft_strlen(err_cant_cd));		$
+		write(STDERR_FILENO, cmd->args[1], ft_strlen(cmd->args[1]));$
+		write(STDERR_FILENO, "\n", 1);$
+	}$
+}$
+$
+void exit_fatal_error()$
+{$
+	const char *err = "error: fatal\n";$
+$
+	write(STDERR_FILENO, err, ft_strlen(err));$
+	exit(1);$
+}$
+$
+void error_exec(char *exec)$
+{$
+	const char *err = "error: cannot execute ";$
+$
+	write(STDERR_FILENO, err, ft_strlen(err));$
+	write(STDERR_FILENO, exec, ft_strlen(exec));$
+	write(STDERR_FILENO, "\n", 1);$
+}$
+$
+t_cmd *malloc_cmd(char **args)$
+{$
+	t_cmd *result;$
+$
+	result = malloc(sizeof(t_cmd));$
+	if (result == NULL)$
+		exit_fatal_error();$
+	result->args = args;$
+	result->pipe = NULL;$
+	result->next = NULL;$
+	return result;$
+}$
+$
+char *ft_strdup(char *str)$
+{$
+	char *res = NULL;$
+$
+	res = malloc(ft_strlen(str) + 1);$
+	if (res == NULL)$
+		exit_fatal_error();$
+	int i = -1;$
+	while (str[++i])$
+		res[i] = str[i];$
+	res[i] = 0;$
+	return res;$
+}$
+$
+char **avdup(char **av, int idx_start, int idx_end)$
+{$
+	char **res;$
+$
+	res = malloc(sizeof(char *) * (1 + idx_end - idx_start));$
+	if (res == NULL)$
+		exit_fatal_error();$
+	int i = 0;$
+	while (idx_start < idx_end)$
+	{$
+		res[i] = ft_strdup(av[idx_start]);$
+		idx_start++;$
+		i++;$
+	}$
+	res[i] = NULL;$
+	return res;$
+}$
+$
+int get_last_args_idx(int idx, int ac, char ** av)$
+{$
+	int i = idx;$
+$
+	while(i < ac && strcmp(av[i], "|") && strcmp(av[i], ";"))$
+		i++;$
+	return i;$
+}$
+$
+t_cmd *parse_args(int ac, char **av)$
+{$
+	t_cmd *result = NULL;$
+	t_cmd *iterator = NULL;$
+	int i = 1;$
+	$
+	while (i < ac)$
+	{$
+		while (!strcmp(av[i], ";"))$
+			if (!(++i < ac))$
+				return result;$
+		int idx_end = get_last_args_idx(i, ac, av);$
+$
+		t_cmd *tmp = malloc_cmd(avdup(av, i, idx_end));$
+		if (tmp == NULL)$
+			exit_fatal_error();$
+		if (result == NULL)$
+			iterator = result = tmp;$
+		else if (!strcmp(av[i - 1],"|"))$
+			iterator = iterator->pipe = tmp;$
+		else if (!strcmp(av[i - 1], ";"))$
+			iterator = iterator->next = tmp;$
+		else$
+			exit_fatal_error();$
+		i = idx_end + 1;$
+	}$
+	return result;$
+}$
+$
+pid_t spawn(int in, int out, t_cmd *it)$
+{$
+	pid_t	pid;$
+$
+	if ((pid = fork()) == 0)$
+	{$
+		if (in != 0)$
+		{$
+			dup2(in, 0);$
+			close(in);$
+		}$
+		if (out != 1)$
+		{$
+			dup2(out, 1);$
+			close(out);$
+		}$
+		if (execve(it->args[0], it->args, g_env) == -1)$
+			error_exec(it->args[0]);$
+	}$
+	return pid;$
+}$
+$
+void exec_pipeline(t_cmd * it)$
+{$
+	int		in, fds[2];$
+$
+	in = 0;$
+	while (it->pipe)$
+	{$
+		if (pipe(fds) == -1)$
+			exit_fatal_error();$
+		spawn(in, fds[1], it);$
+		close(fds[1]);$
+		if (in && it->pipe)$
+			close(in);$
+		in = fds[0];$
+		it = it->pipe;$
+	}$
+	spawn(in, 1, it);$
+	if (in != 0)$
+		close(in);$
+}$
+$
+void exec_cmds(t_cmd *cmds)$
+{$
+	int status;$
+	t_cmd * it = cmds;$
+$
+	while (it)$
+	{$
+		if (!strcmp(it->args[0], "cd"))$
+			builtin_cd(it);$
+		else$
+		{$
+			exec_pipeline(it);$
+			wait(&status);$
+			while (it->pipe)$
+				it = it->pipe;$
+		}$
+		it = it->next;$
+	}$
+}$
+$
+int main(int ac, char **av, char **env)$
+{$
+	g_env = env;$
+	t_cmd* res = parse_args(ac, av);$
+	// print_cmd(res);$
+	exec_cmds(res);$
+	// free_shit(res);$
+	exit(0); // exit to avoid valgrind reported leak on res...$
+}$
+$
+// void	free_cmd(t_cmd *to_free)$
+// {$
+// 	size_t i = 0;$
+$
+// 	while(to_free->args[i])$
+// 		free(to_free->args[i++]);$
+// 	free(to_free->args);$
+// 	free(to_free);$
+// }$
+$
+// void free_shit(t_cmd *to_free)$
+// {$
+// 	t_cmd *tmp = to_free->next ? to_free->next: to_free->pipe;$
+// 	free_cmd(to_free);$
+// 	if (tmp ==NULL)$
+// 		return;$
+// 	free_shit(tmp);$
+// }$
+$
+// void print_array(char **arr)$
+// {$
+// 	int i = 0;$
+// 	printf("-------\n");$
+// 	while (arr[i])$
+// 	{$
+// 		printf("    %s\n", arr[i]);$
+// 		i++;$
+// 	}$
+// }$
+$
+// void print_cmd(t_cmd *cmd)$
+// {$
+// 	t_cmd *iterator = cmd;$
+$
+// 	while (iterator)$
+// 	{$
+// 		print_array(iterator->args);$
+$
+// 		if (iterator->next != NULL)$
+// 			iterator = iterator->next;$
+// 		else$
+// 			iterator = iterator->pipe;$
+// 	}$
+// 	printf("-------\n");$
+// 	printf("-------\n");$
+// }$
+/bin/ls microshell.c$
+microshell.c$
+$
+/bin/ls salut$
+$
+;$
+$
+; ;$
+$
+; ; /bin/echo OK$
+OK$
+$
+; ; /bin/echo OK ;$
+OK$
+$
+; ; /bin/echo OK ; ;$
+OK$
+$
+; ; /bin/echo OK ; ; ; /bin/echo OK$
+OK$
+OK$
+$
+/bin/ls | /usr/bin/grep microshell$
+microshell$
+microshell-training.c$
+microshell-training2.c$
+microshell.c$
+microshell.dSYM$
+microshell_minimal.c$
+$
+/bin/ls | /usr/bin/grep microshell | /usr/bin/grep micro$
+microshell$
+microshell-training.c$
+microshell-training2.c$
+microshell.c$
+microshell.dSYM$
+microshell_minimal.c$
+$
+/bin/ls | /usr/bin/grep microshell | /usr/bin/grep micro | /usr/bin/grep shell | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro$
+microshell$
+microshell-training.c$
+microshell-training2.c$
+microshell.c$
+microshell.dSYM$
+microshell_minimal.c$
+$
+/bin/ls | /usr/bin/grep microshell | /usr/bin/grep micro | /usr/bin/grep shell | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep micro | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell | /usr/bin/grep shell$
+microshell$
+microshell-training.c$
+microshell-training2.c$
+microshell.c$
+microshell.dSYM$
+microshell_minimal.c$
+$
+/bin/ls ewqew | /usr/bin/grep micro | /bin/cat -n ; /bin/echo dernier ; /bin/echo$
+dernier$
+$
+$
+/bin/ls | /usr/bin/grep micro | /bin/cat -n ; /bin/echo dernier ; /bin/echo ftest ;$
+     1	microshell$
+     2	microshell-training.c$
+     3	microshell-training2.c$
+     4	microshell.c$
+     5	microshell.dSYM$
+     6	microshell_minimal.c$
+dernier$
+ftest$
+$
+/bin/echo ftest ; /bin/echo ftewerwerwerst ; /bin/echo werwerwer ; /bin/echo qweqweqweqew ; /bin/echo qwewqeqrtregrfyukui ;$
+ftest$
+ftewerwerwerst$
+werwerwer$
+qweqweqweqew$
+qwewqeqrtregrfyukui$
+$
+/bin/ls ftest ; /bin/ls ; /bin/ls werwer ; /bin/ls microshell.c ; /bin/ls subject.fr.txt ;$
+leaks.res$
+microshell$
+microshell-training.c$
+microshell-training2.c$
+microshell.c$
+microshell.dSYM$
+microshell_minimal.c$
+out$
+out.res$
+subject.en.txt$
+subject.fr.txt$
+test.sh$
+test2.sh$
+microshell.c$
+subject.fr.txt$
+$
+/bin/ls | /usr/bin/grep micro ; /bin/ls | /usr/bin/grep micro ; /bin/ls | /usr/bin/grep micro ; /bin/ls | /usr/bin/grep micro ;$
+microshell$
+microshell-training.c$
+microshell-training2.c$
+microshell.c$
+microshell.dSYM$
+microshell_minimal.c$
+microshell$
+microshell-training.c$
+microshell-training2.c$
+microshell.c$
+microshell.dSYM$
+microshell_minimal.c$
+microshell$
+microshell-training.c$
+microshell-training2.c$
+microshell.c$
+microshell.dSYM$
+microshell_minimal.c$
+microshell$
+microshell-training.c$
+microshell-training2.c$
+microshell.c$
+microshell.dSYM$
+microshell_minimal.c$
+$
+/bin/cat subject.fr.txt | /usr/bin/grep a | /usr/bin/grep b ; /bin/cat subject.fr.txt ;$
+Ecrire un programme qui aura ressemblera à un executeur de commande shell$
+- Les executables seront appelés avec un chemin relatif ou absolut mais votre programme ne devra pas construire de chemin (en utilisant la variable d environment PATH par exemple)$
+- Votre programme doit implementer "|" et ";" comme dans bash$
+- Votre programme doit implementer la commande "built-in" cd et seulement avec un chemin en argument (pas de '-' ou sans argument)$
+	- si cd n'a pas le bon nombre d'argument votre programme devra afficher dans STDERR "error: cd: bad arguments" suivi d'un '\n'$
+- Votre programme n'a pas à gerer les variables d'environment ($BLA ...)$
+- Si execve echoue votre programme doit afficher dans STDERR "error: cannot execute executable_that_failed" suivi d'un '\n' en ayant remplacé executable_that_failed avec le chemin du programme qui n'a pu etre executé (ca devrait etre le premier argument de execve)$
+- Votre programme devrait pouvoir accepter des centaines de "|" meme si la limite du nombre de "fichier ouvert" est inferieur à 30.$
+N'oubliez pas de passer les variables d'environment à execve$
+clang -Wall -Werror -Wextra -g main.c -o microshell && ./microshell /bin/echo i love my microshell ";" /bin/echo i love my microshell ";" /bin/echo i love my microshell$
+settings set -- target.run-args  "/bin/ls" '\|' "/usr/bin/grep" "microshell" "\;" "/bin/echo" "i" "love" "my" "microshell"$
+Assignment name  : microshell$
+Expected files   : *.c *.h$
+Allowed functions: malloc, free, write, close, fork, waitpid, signal, kill, exit, chdir, execve, dup, dup2, pipe, strcmp, strncmp$
+--------------------------------------------------------------------------------------$
+$
+Ecrire un programme qui aura ressemblera à un executeur de commande shell$
+- La ligne de commande à executer sera passer en argument du programme$
+- Les executables seront appelés avec un chemin relatif ou absolut mais votre programme ne devra pas construire de chemin (en utilisant la variable d environment PATH par exemple)$
+- Votre programme doit implementer "|" et ";" comme dans bash$
+	- Nous n'essaierons jamais un "|" immédiatement suivi ou précédé par rien ou un autre "|" ou un ";"$
+- Votre programme doit implementer la commande "built-in" cd et seulement avec un chemin en argument (pas de '-' ou sans argument)$
+	- si cd n'a pas le bon nombre d'argument votre programme devra afficher dans STDERR "error: cd: bad arguments" suivi d'un '\n'$
+	- si cd a echoué votre programme devra afficher dans STDERR "error: cd: cannot change directory to path_to_change" suivi d'un '\n' avec path_to_change remplacer par l'argument à cd$
+	- une commande cd ne sera jamais iexitmmédiatement précédée ou suivie par un "|"$
+- Votre programme n'a pas à gerer les "wildcards" (*, ~ etc...)$
+- Votre programme n'a pas à gerer les variables d'environment ($BLA ...)$
+- Si un appel systeme, sauf execve et chdir, retourne une erreur votre programme devra immédiatement afficher dans STDERR "error: fatal" suivi d'un '\n' et sortir$
+- Si execve echoue votre programme doit afficher dans STDERR "error: cannot execute executable_that_failed" suivi d'un '\n' en ayant remplacé executable_that_failed avec le chemin du programme qui n'a pu etre executé (ca devrait etre le premier argument de execve)$
+- Votre programme devrait pouvoir accepter des centaines de "|" meme si la limite du nombre de "fichier ouvert" est inferieur à 30.$
+$
+Par exemple, la commande suivante doit marcher:$
+$>./microshell /bin/ls "|" /usr/bin/grep microshell ";" /bin/echo i love my microshell$
+microshell$
+i love my microshell$
+$>$
+$
+Conseils:$
+N'oubliez pas de passer les variables d'environment à execve$
+$
+Conseils:$
+Ne fuitez pas de file descriptor!$
+$
+$
+clang -Wall -Werror -Wextra -g main.c -o microshell && ./microshell /bin/echo i love my microshell ";" /bin/echo i love my microshell ";" /bin/echo i love my microshell$
+$
+lldb : $
+settings set -- target.run-args  "/bin/ls" '\|' "/usr/bin/grep" "microshell" "\;" "/bin/echo" "i" "love" "my" "microshell"$
+$
+/bin/cat subject.fr.txt | /usr/bin/grep a | /usr/bin/grep w ; /bin/cat subject.fr.txt ;$
+Allowed functions: malloc, free, write, close, fork, waitpid, signal, kill, exit, chdir, execve, dup, dup2, pipe, strcmp, strncmp$
+- Votre programme n'a pas à gerer les "wildcards" (*, ~ etc...)$
+Assignment name  : microshell$
+Expected files   : *.c *.h$
+Allowed functions: malloc, free, write, close, fork, waitpid, signal, kill, exit, chdir, execve, dup, dup2, pipe, strcmp, strncmp$
+--------------------------------------------------------------------------------------$
+$
+Ecrire un programme qui aura ressemblera à un executeur de commande shell$
+- La ligne de commande à executer sera passer en argument du programme$
+- Les executables seront appelés avec un chemin relatif ou absolut mais votre programme ne devra pas construire de chemin (en utilisant la variable d environment PATH par exemple)$
+- Votre programme doit implementer "|" et ";" comme dans bash$
+	- Nous n'essaierons jamais un "|" immédiatement suivi ou précédé par rien ou un autre "|" ou un ";"$
+- Votre programme doit implementer la commande "built-in" cd et seulement avec un chemin en argument (pas de '-' ou sans argument)$
+	- si cd n'a pas le bon nombre d'argument votre programme devra afficher dans STDERR "error: cd: bad arguments" suivi d'un '\n'$
+	- si cd a echoué votre programme devra afficher dans STDERR "error: cd: cannot change directory to path_to_change" suivi d'un '\n' avec path_to_change remplacer par l'argument à cd$
+	- une commande cd ne sera jamais iexitmmédiatement précédée ou suivie par un "|"$
+- Votre programme n'a pas à gerer les "wildcards" (*, ~ etc...)$
+- Votre programme n'a pas à gerer les variables d'environment ($BLA ...)$
+- Si un appel systeme, sauf execve et chdir, retourne une erreur votre programme devra immédiatement afficher dans STDERR "error: fatal" suivi d'un '\n' et sortir$
+- Si execve echoue votre programme doit afficher dans STDERR "error: cannot execute executable_that_failed" suivi d'un '\n' en ayant remplacé executable_that_failed avec le chemin du programme qui n'a pu etre executé (ca devrait etre le premier argument de execve)$
+- Votre programme devrait pouvoir accepter des centaines de "|" meme si la limite du nombre de "fichier ouvert" est inferieur à 30.$
+$
+Par exemple, la commande suivante doit marcher:$
+$>./microshell /bin/ls "|" /usr/bin/grep microshell ";" /bin/echo i love my microshell$
+microshell$
+i love my microshell$
+$>$
+$
+Conseils:$
+N'oubliez pas de passer les variables d'environment à execve$
+$
+Conseils:$
+Ne fuitez pas de file descriptor!$
+$
+$
+clang -Wall -Werror -Wextra -g main.c -o microshell && ./microshell /bin/echo i love my microshell ";" /bin/echo i love my microshell ";" /bin/echo i love my microshell$
+$
+lldb : $
+settings set -- target.run-args  "/bin/ls" '\|' "/usr/bin/grep" "microshell" "\;" "/bin/echo" "i" "love" "my" "microshell"$
+$
+/bin/cat subject.fr.txt | /usr/bin/grep a | /usr/bin/grep w ; /bin/cat subject.fr.txt$
+Allowed functions: malloc, free, write, close, fork, waitpid, signal, kill, exit, chdir, execve, dup, dup2, pipe, strcmp, strncmp$
+- Votre programme n'a pas à gerer les "wildcards" (*, ~ etc...)$
+Assignment name  : microshell$
+Expected files   : *.c *.h$
+Allowed functions: malloc, free, write, close, fork, waitpid, signal, kill, exit, chdir, execve, dup, dup2, pipe, strcmp, strncmp$
+--------------------------------------------------------------------------------------$
+$
+Ecrire un programme qui aura ressemblera à un executeur de commande shell$
+- La ligne de commande à executer sera passer en argument du programme$
+- Les executables seront appelés avec un chemin relatif ou absolut mais votre programme ne devra pas construire de chemin (en utilisant la variable d environment PATH par exemple)$
+- Votre programme doit implementer "|" et ";" comme dans bash$
+	- Nous n'essaierons jamais un "|" immédiatement suivi ou précédé par rien ou un autre "|" ou un ";"$
+- Votre programme doit implementer la commande "built-in" cd et seulement avec un chemin en argument (pas de '-' ou sans argument)$
+	- si cd n'a pas le bon nombre d'argument votre programme devra afficher dans STDERR "error: cd: bad arguments" suivi d'un '\n'$
+	- si cd a echoué votre programme devra afficher dans STDERR "error: cd: cannot change directory to path_to_change" suivi d'un '\n' avec path_to_change remplacer par l'argument à cd$
+	- une commande cd ne sera jamais iexitmmédiatement précédée ou suivie par un "|"$
+- Votre programme n'a pas à gerer les "wildcards" (*, ~ etc...)$
+- Votre programme n'a pas à gerer les variables d'environment ($BLA ...)$
+- Si un appel systeme, sauf execve et chdir, retourne une erreur votre programme devra immédiatement afficher dans STDERR "error: fatal" suivi d'un '\n' et sortir$
+- Si execve echoue votre programme doit afficher dans STDERR "error: cannot execute executable_that_failed" suivi d'un '\n' en ayant remplacé executable_that_failed avec le chemin du programme qui n'a pu etre executé (ca devrait etre le premier argument de execve)$
+- Votre programme devrait pouvoir accepter des centaines de "|" meme si la limite du nombre de "fichier ouvert" est inferieur à 30.$
+$
+Par exemple, la commande suivante doit marcher:$
+$>./microshell /bin/ls "|" /usr/bin/grep microshell ";" /bin/echo i love my microshell$
+microshell$
+i love my microshell$
+$>$
+$
+Conseils:$
+N'oubliez pas de passer les variables d'environment à execve$
+$
+Conseils:$
+Ne fuitez pas de file descriptor!$
+$
+$
+clang -Wall -Werror -Wextra -g main.c -o microshell && ./microshell /bin/echo i love my microshell ";" /bin/echo i love my microshell ";" /bin/echo i love my microshell$
+$
+lldb : $
+settings set -- target.run-args  "/bin/ls" '\|' "/usr/bin/grep" "microshell" "\;" "/bin/echo" "i" "love" "my" "microshell"$
+$
+/bin/cat subject.fr.txt ; /bin/cat subject.fr.txt | /usr/bin/grep a | /usr/bin/grep b | /usr/bin/grep z ; /bin/cat subject.fr.txt$
+Assignment name  : microshell$
+Expected files   : *.c *.h$
+Allowed functions: malloc, free, write, close, fork, waitpid, signal, kill, exit, chdir, execve, dup, dup2, pipe, strcmp, strncmp$
+--------------------------------------------------------------------------------------$
+$
+Ecrire un programme qui aura ressemblera à un executeur de commande shell$
+- La ligne de commande à executer sera passer en argument du programme$
+- Les executables seront appelés avec un chemin relatif ou absolut mais votre programme ne devra pas construire de chemin (en utilisant la variable d environment PATH par exemple)$
+- Votre programme doit implementer "|" et ";" comme dans bash$
+	- Nous n'essaierons jamais un "|" immédiatement suivi ou précédé par rien ou un autre "|" ou un ";"$
+- Votre programme doit implementer la commande "built-in" cd et seulement avec un chemin en argument (pas de '-' ou sans argument)$
+	- si cd n'a pas le bon nombre d'argument votre programme devra afficher dans STDERR "error: cd: bad arguments" suivi d'un '\n'$
+	- si cd a echoué votre programme devra afficher dans STDERR "error: cd: cannot change directory to path_to_change" suivi d'un '\n' avec path_to_change remplacer par l'argument à cd$
+	- une commande cd ne sera jamais iexitmmédiatement précédée ou suivie par un "|"$
+- Votre programme n'a pas à gerer les "wildcards" (*, ~ etc...)$
+- Votre programme n'a pas à gerer les variables d'environment ($BLA ...)$
+- Si un appel systeme, sauf execve et chdir, retourne une erreur votre programme devra immédiatement afficher dans STDERR "error: fatal" suivi d'un '\n' et sortir$
+- Si execve echoue votre programme doit afficher dans STDERR "error: cannot execute executable_that_failed" suivi d'un '\n' en ayant remplacé executable_that_failed avec le chemin du programme qui n'a pu etre executé (ca devrait etre le premier argument de execve)$
+- Votre programme devrait pouvoir accepter des centaines de "|" meme si la limite du nombre de "fichier ouvert" est inferieur à 30.$
+$
+Par exemple, la commande suivante doit marcher:$
+$>./microshell /bin/ls "|" /usr/bin/grep microshell ";" /bin/echo i love my microshell$
+microshell$
+i love my microshell$
+$>$
+$
+Conseils:$
+N'oubliez pas de passer les variables d'environment à execve$
+$
+Conseils:$
+Ne fuitez pas de file descriptor!$
+$
+$
+clang -Wall -Werror -Wextra -g main.c -o microshell && ./microshell /bin/echo i love my microshell ";" /bin/echo i love my microshell ";" /bin/echo i love my microshell$
+$
+lldb : $
+settings set -- target.run-args  "/bin/ls" '\|' "/usr/bin/grep" "microshell" "\;" "/bin/echo" "i" "love" "my" "microshell"$
+N'oubliez pas de passer les variables d'environment à execve$
+Assignment name  : microshell$
+Expected files   : *.c *.h$
+Allowed functions: malloc, free, write, close, fork, waitpid, signal, kill, exit, chdir, execve, dup, dup2, pipe, strcmp, strncmp$
+--------------------------------------------------------------------------------------$
+$
+Ecrire un programme qui aura ressemblera à un executeur de commande shell$
+- La ligne de commande à executer sera passer en argument du programme$
+- Les executables seront appelés avec un chemin relatif ou absolut mais votre programme ne devra pas construire de chemin (en utilisant la variable d environment PATH par exemple)$
+- Votre programme doit implementer "|" et ";" comme dans bash$
+	- Nous n'essaierons jamais un "|" immédiatement suivi ou précédé par rien ou un autre "|" ou un ";"$
+- Votre programme doit implementer la commande "built-in" cd et seulement avec un chemin en argument (pas de '-' ou sans argument)$
+	- si cd n'a pas le bon nombre d'argument votre programme devra afficher dans STDERR "error: cd: bad arguments" suivi d'un '\n'$
+	- si cd a echoué votre programme devra afficher dans STDERR "error: cd: cannot change directory to path_to_change" suivi d'un '\n' avec path_to_change remplacer par l'argument à cd$
+	- une commande cd ne sera jamais iexitmmédiatement précédée ou suivie par un "|"$
+- Votre programme n'a pas à gerer les "wildcards" (*, ~ etc...)$
+- Votre programme n'a pas à gerer les variables d'environment ($BLA ...)$
+- Si un appel systeme, sauf execve et chdir, retourne une erreur votre programme devra immédiatement afficher dans STDERR "error: fatal" suivi d'un '\n' et sortir$
+- Si execve echoue votre programme doit afficher dans STDERR "error: cannot execute executable_that_failed" suivi d'un '\n' en ayant remplacé executable_that_failed avec le chemin du programme qui n'a pu etre executé (ca devrait etre le premier argument de execve)$
+- Votre programme devrait pouvoir accepter des centaines de "|" meme si la limite du nombre de "fichier ouvert" est inferieur à 30.$
+$
+Par exemple, la commande suivante doit marcher:$
+$>./microshell /bin/ls "|" /usr/bin/grep microshell ";" /bin/echo i love my microshell$
+microshell$
+i love my microshell$
+$>$
+$
+Conseils:$
+N'oubliez pas de passer les variables d'environment à execve$
+$
+Conseils:$
+Ne fuitez pas de file descriptor!$
+$
+$
+clang -Wall -Werror -Wextra -g main.c -o microshell && ./microshell /bin/echo i love my microshell ";" /bin/echo i love my microshell ";" /bin/echo i love my microshell$
+$
+lldb : $
+settings set -- target.run-args  "/bin/ls" '\|' "/usr/bin/grep" "microshell" "\;" "/bin/echo" "i" "love" "my" "microshell"$
+$
+; /bin/cat subject.fr.txt ; /bin/cat subject.fr.txt | /usr/bin/grep a | /usr/bin/grep b | /usr/bin/grep z ; /bin/cat subject.fr.txt$
+Assignment name  : microshell$
+Expected files   : *.c *.h$
+Allowed functions: malloc, free, write, close, fork, waitpid, signal, kill, exit, chdir, execve, dup, dup2, pipe, strcmp, strncmp$
+--------------------------------------------------------------------------------------$
+$
+Ecrire un programme qui aura ressemblera à un executeur de commande shell$
+- La ligne de commande à executer sera passer en argument du programme$
+- Les executables seront appelés avec un chemin relatif ou absolut mais votre programme ne devra pas construire de chemin (en utilisant la variable d environment PATH par exemple)$
+- Votre programme doit implementer "|" et ";" comme dans bash$
+	- Nous n'essaierons jamais un "|" immédiatement suivi ou précédé par rien ou un autre "|" ou un ";"$
+- Votre programme doit implementer la commande "built-in" cd et seulement avec un chemin en argument (pas de '-' ou sans argument)$
+	- si cd n'a pas le bon nombre d'argument votre programme devra afficher dans STDERR "error: cd: bad arguments" suivi d'un '\n'$
+	- si cd a echoué votre programme devra afficher dans STDERR "error: cd: cannot change directory to path_to_change" suivi d'un '\n' avec path_to_change remplacer par l'argument à cd$
+	- une commande cd ne sera jamais iexitmmédiatement précédée ou suivie par un "|"$
+- Votre programme n'a pas à gerer les "wildcards" (*, ~ etc...)$
+- Votre programme n'a pas à gerer les variables d'environment ($BLA ...)$
+- Si un appel systeme, sauf execve et chdir, retourne une erreur votre programme devra immédiatement afficher dans STDERR "error: fatal" suivi d'un '\n' et sortir$
+- Si execve echoue votre programme doit afficher dans STDERR "error: cannot execute executable_that_failed" suivi d'un '\n' en ayant remplacé executable_that_failed avec le chemin du programme qui n'a pu etre executé (ca devrait etre le premier argument de execve)$
+- Votre programme devrait pouvoir accepter des centaines de "|" meme si la limite du nombre de "fichier ouvert" est inferieur à 30.$
+$
+Par exemple, la commande suivante doit marcher:$
+$>./microshell /bin/ls "|" /usr/bin/grep microshell ";" /bin/echo i love my microshell$
+microshell$
+i love my microshell$
+$>$
+$
+Conseils:$
+N'oubliez pas de passer les variables d'environment à execve$
+$
+Conseils:$
+Ne fuitez pas de file descriptor!$
+$
+$
+clang -Wall -Werror -Wextra -g main.c -o microshell && ./microshell /bin/echo i love my microshell ";" /bin/echo i love my microshell ";" /bin/echo i love my microshell$
+$
+lldb : $
+settings set -- target.run-args  "/bin/ls" '\|' "/usr/bin/grep" "microshell" "\;" "/bin/echo" "i" "love" "my" "microshell"$
+N'oubliez pas de passer les variables d'environment à execve$
+Assignment name  : microshell$
+Expected files   : *.c *.h$
+Allowed functions: malloc, free, write, close, fork, waitpid, signal, kill, exit, chdir, execve, dup, dup2, pipe, strcmp, strncmp$
+--------------------------------------------------------------------------------------$
+$
+Ecrire un programme qui aura ressemblera à un executeur de commande shell$
+- La ligne de commande à executer sera passer en argument du programme$
+- Les executables seront appelés avec un chemin relatif ou absolut mais votre programme ne devra pas construire de chemin (en utilisant la variable d environment PATH par exemple)$
+- Votre programme doit implementer "|" et ";" comme dans bash$
+	- Nous n'essaierons jamais un "|" immédiatement suivi ou précédé par rien ou un autre "|" ou un ";"$
+- Votre programme doit implementer la commande "built-in" cd et seulement avec un chemin en argument (pas de '-' ou sans argument)$
+	- si cd n'a pas le bon nombre d'argument votre programme devra afficher dans STDERR "error: cd: bad arguments" suivi d'un '\n'$
+	- si cd a echoué votre programme devra afficher dans STDERR "error: cd: cannot change directory to path_to_change" suivi d'un '\n' avec path_to_change remplacer par l'argument à cd$
+	- une commande cd ne sera jamais iexitmmédiatement précédée ou suivie par un "|"$
+- Votre programme n'a pas à gerer les "wildcards" (*, ~ etc...)$
+- Votre programme n'a pas à gerer les variables d'environment ($BLA ...)$
+- Si un appel systeme, sauf execve et chdir, retourne une erreur votre programme devra immédiatement afficher dans STDERR "error: fatal" suivi d'un '\n' et sortir$
+- Si execve echoue votre programme doit afficher dans STDERR "error: cannot execute executable_that_failed" suivi d'un '\n' en ayant remplacé executable_that_failed avec le chemin du programme qui n'a pu etre executé (ca devrait etre le premier argument de execve)$
+- Votre programme devrait pouvoir accepter des centaines de "|" meme si la limite du nombre de "fichier ouvert" est inferieur à 30.$
+$
+Par exemple, la commande suivante doit marcher:$
+$>./microshell /bin/ls "|" /usr/bin/grep microshell ";" /bin/echo i love my microshell$
+microshell$
+i love my microshell$
+$>$
+$
+Conseils:$
+N'oubliez pas de passer les variables d'environment à execve$
+$
+Conseils:$
+Ne fuitez pas de file descriptor!$
+$
+$
+clang -Wall -Werror -Wextra -g main.c -o microshell && ./microshell /bin/echo i love my microshell ";" /bin/echo i love my microshell ";" /bin/echo i love my microshell$
+$
+lldb : $
+settings set -- target.run-args  "/bin/ls" '\|' "/usr/bin/grep" "microshell" "\;" "/bin/echo" "i" "love" "my" "microshell"$
+$
+blah | /bin/echo OK$
+OK$
+$
+blah | /bin/echo OK ;$
+OK$
+$
