@@ -70,7 +70,7 @@ t_cmd *malloc_cmd(char **args)
 
 char* ft_strdup(const char* s)
 {
-  char* res = malloc(ft_strlen(s));
+  char* res = malloc(ft_strlen(s) + 1);
 
   if (res == NULL)
     exit_fatal_error();
