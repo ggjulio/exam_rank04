@@ -4,6 +4,9 @@
 #include <string.h>
 #include <sys/errno.h>
 
+#include <sys/types.h>
+#include <sys/wait.h>
+
 char ** g_env = NULL;
 
 typedef struct s_cmd
@@ -166,20 +169,14 @@ void exec_pipeline(t_cmd *it)
 	exit_fatal_error();
       spawn(in, fds[1], it);
       close(fds[1]);
-      if (errno == EBADF)
-	exit(44);
       if (in && it->pipe)
-	close(in);
-      if (errno == EBADF)
-	exit(44);
+      	close(in);
       in = fds[0];
       it = it->pipe;
     }
   spawn(in, 1, it);
   if (in != 0)
     close(in);
-      if (errno == EBADF)
-	exit(44);
 }
 
 void exec_cmds(t_cmd *it)
@@ -201,11 +198,29 @@ void exec_cmds(t_cmd *it)
 }
 
 
+void free_cmd(t_cmd *to_free)
+{
+  size_t i = 0;
+  while (to_free->args[i])
+    free(to_free->args[i++]);
+  free(to_free->args);
+  free(to_free);
+}
+
+void shit(t_cmd *cmd)
+{
+  t_cmd *tmp = cmd->next ? cmd->next : cmd->pipe;
+  free_cmd(cmd);
+  if (tmp)
+    shit(tmp);
+}
+
 int main(int ac, char**av, char **env)
 {
   g_env = env;
   t_cmd *cmds = parse_args(ac, av);
   exec_cmds(cmds);
+  shit(cmds);
   return 0;
 }
 
